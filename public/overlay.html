@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<title>DJ Overlay</title>
+<link rel="stylesheet" href="overlay.css" />
+</head>
+<body>
+<div id="root">
+  <div id="vj-canvas-holder" class="vj-canvas-holder"></div>
+  <div id="yt-player-wrap" class="yt-player-wrap">
+    <div id="yt-player-slot-a" class="yt-player-slot yt-player-slot-a"><div id="yt-player-a"></div></div>
+    <div id="yt-player-divider" class="yt-player-divider"></div>
+    <div id="yt-player-slot-b" class="yt-player-slot yt-player-slot-b"><div id="yt-player-b"></div></div>
+  </div>
+  <div id="local-mp4-wrap" class="local-mp4-wrap">
+    <video id="local-mp4-video" class="local-mp4-video" muted loop playsinline preload="auto"></video>
+  </div>
+
+  <div id="np-cluster" class="np-cluster">
+    <div id="now-playing-a" class="card now-playing">
+      <img id="np-art-a" class="np-art" alt="" />
+      <div class="np-meta">
+        <div class="np-title" id="np-title-a"></div>
+        <div class="np-artist" id="np-artist-a"></div>
+        <div class="np-progress-track"><div class="np-progress-fill" id="np-progress-a"></div></div>
+      </div>
+    </div>
+
+    <div id="mashup-link" class="mashup-link"></div>
+
+    <div id="now-playing-b" class="card now-playing now-playing-b">
+      <img id="np-art-b" class="np-art" alt="" />
+      <div class="np-meta">
+        <div class="np-title" id="np-title-b"></div>
+        <div class="np-artist" id="np-artist-b"></div>
+        <div class="np-progress-track"><div class="np-progress-fill" id="np-progress-b"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="incoming" class="card incoming">
+    <div class="incoming-label">COMING UP</div>
+    <img id="in-art" class="in-art" alt="" />
+    <div class="in-meta">
+      <div class="in-title" id="in-title"></div>
+      <div class="in-artist" id="in-artist"></div>
+    </div>
+  </div>
+
+  <div id="webcam-frame" class="card webcam-frame">
+    <video id="webcam-video" autoplay muted playsinline></video>
+  </div>
+</div>
+<script src="vendor/p5.min.js"></script>
+<script type="module" src="vj-sketch.js"></script>
+<script src="https://www.youtube.com/iframe_api"></script>
+<script src="overlay.js"></script>
+</body>
+</html>

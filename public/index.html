@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<title>DJ Overlay 控制台</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header class="status-bar">
+  <span class="status-light" id="status-serato"><i class="dot"></i>曲目資料來源</span>
+  <span class="status-light" id="status-rhythm"><i class="dot"></i>節奏同步</span>
+  <span class="status-light" id="status-overlay"><i class="dot"></i>Overlay <span id="overlay-state-text">顯示中</span></span>
+</header>
+
+<div class="global-bar">
+  <button id="toggle-overlay-btn" class="btn btn-primary">隱藏 Overlay</button>
+  <kbd>⌥O</kbd>
+</div>
+
+<section class="panel-section" id="section-dj">
+  <h2>DJ 控制</h2>
+  <label class="toggle-row">
+    <input type="checkbox" id="hide-3-4" />
+    隱藏 Deck 3 / 4 <kbd>⌥H</kbd>
+  </label>
+  <div id="decks" class="decks"></div>
+</section>
+
+<section class="panel-section" id="section-vj">
+  <h2>VJ 控制</h2>
+  <div class="drop-row">
+    <button id="drop-btn" class="btn btn-drop">DROP</button>
+    <kbd>⌥D</kbd>
+  </div>
+  <div class="vj-style-grid" id="vj-style-grid"></div>
+  <div class="local-video-row hidden" id="local-video-row">
+    <span class="local-video-label">選擇影片</span>
+    <select id="local-video-select"></select>
+  </div>
+  <div class="yt-nudge-row">
+    <span class="yt-nudge-label">YouTube MV 時間校正</span>
+    <button id="yt-nudge-back" class="btn btn-small">-1s</button>
+    <kbd>⌥[</kbd>
+    <input type="number" id="yt-nudge-step" class="yt-nudge-step" value="1" min="0.1" step="0.1" />
+    <button id="yt-nudge-fwd" class="btn btn-small">+1s</button>
+    <kbd>⌥]</kbd>
+  </div>
+</section>
+
+<section class="panel-section" id="section-webcam">
+  <h2>視訊畫面</h2>
+  <button id="toggle-webcam-btn" class="btn">開啟視訊畫面</button>
+  <kbd>⌥C</kbd>
+</section>
+
+<section class="panel-section history-panel" id="section-history">
+  <h2>播放紀錄</h2>
+  <ul id="history-list"></ul>
+</section>
+
+<script src="vendor/p5.min.js"></script>
+<script src="vj-preview.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,361 @@
+:root {
+  --accent-color: 74, 158, 255;
+  --accent-color-b: 255, 106, 74;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+#root {
+  position: fixed;
+  inset: 0;
+}
+
+/* 隱藏 Overlay 只藏曲目資訊卡片，VJ 背景維持運作 */
+#root.hidden .card,
+#root.hidden .mashup-link {
+  opacity: 0 !important;
+  pointer-events: none;
+}
+
+.vj-canvas-holder {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}
+
+.vj-canvas-holder canvas {
+  display: block;
+  /* 保險：畫面本身一定要撐滿整個視窗。p5 的 createCanvas 是用當下讀到的
+     window.innerWidth/innerHeight 設定 canvas 實際像素尺寸，如果 setup()
+     跑的時間點剛好碰上瀏覽器視窗還沒完全定型（例如 --app 模式視窗剛展開、
+     還在跑最大化動畫），canvas 就會卡在那個尚未定型的尺寸——常常寬度還好、
+     高度卻定太短，導致場景畫面看起來像被硬生生截斷、下面留一塊黑。這裡直接
+     用 CSS 強制 canvas 撐滿容器，畫面內容不會被截斷；等 windowResized() 真的
+     觸發、resizeCanvas() 補上正確的內部像素尺寸後就完全正常，這行只是那段
+     空窗期的保險。 */
+  width: 100%;
+  height: 100%;
+}
+
+.vj-canvas-holder.style-hidden {
+  display: none;
+}
+
+.yt-player-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: #000;
+  display: none;
+}
+
+.yt-player-wrap.active {
+  display: block;
+}
+
+.yt-player-slot {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  overflow: hidden;
+  /* 預設收起來（寬度 0），實際「誰全螢幕/誰分割」由 JS 依內容動態加 class 決定，
+     不寫死是 slot a 還是 slot b——避免唯一剩下那軌剛好待在 slot b 時，
+     為了排版被迫搬去另一個 iframe 重新載入影片。 */
+  left: 100%;
+  width: 0;
+  transition: width 0.4s ease, left 0.4s ease;
+}
+
+.yt-player-slot.yt-solo {
+  left: 0;
+  width: 100%;
+}
+
+/* 兩軌同時 on-air（mashup）時分割畫面，左右各放一支 MV */
+.yt-player-wrap.split .yt-player-slot-a {
+  left: 0;
+  width: 50%;
+}
+
+.yt-player-wrap.split .yt-player-slot-b {
+  left: 50%;
+  width: 50%;
+}
+
+.yt-player-slot iframe {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.yt-player-divider {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 0;
+  height: 100%;
+  background: linear-gradient(180deg, rgb(var(--accent-color)), rgb(var(--accent-color-b)));
+  opacity: 0;
+  transform: translateX(-50%);
+  transition: opacity 0.4s ease;
+  z-index: 1;
+}
+
+.yt-player-wrap.split .yt-player-divider {
+  width: 3px;
+  opacity: 0.9;
+}
+
+.local-mp4-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: #000;
+  display: none;
+}
+
+.local-mp4-wrap.active {
+  display: block;
+}
+
+.local-mp4-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/*
+ * Route B 是給 OBS Browser Source 用的，畫面實際輸出解析度可能是 1080p、
+ * 1440p，甚至電視用的 4K——固定 px 在高解析度輸出時會顯得過小。這裡改用
+ * vw（以 1920px 寬的畫布為基準換算）搭配 clamp() 做等比例縮放，同時避免
+ * 極端解析度（例如很小的預覽視窗）下文字小到看不清楚或大到誇張。
+ */
+
+.card {
+  position: fixed;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.73vw;
+  padding: 0.63vw 0.83vw;
+  border-radius: 0.73vw;
+  background: rgba(20, 22, 26, 0.55);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Now Playing：左下角，一或兩張卡（兩個 deck 同時 on-air / mashup 時）*/
+
+.np-cluster {
+  position: fixed;
+  left: 1.67vw;
+  bottom: 1.67vw;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+}
+
+.now-playing {
+  position: static;
+  width: clamp(340px, 30vw, 760px);
+  gap: 1.3vw;
+  padding: 1.3vw 1.7vw;
+  border-radius: 1.15vw;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.5s ease, transform 0.5s ease, box-shadow 0.5s ease;
+  box-shadow: 0 0 24px 2px rgba(var(--accent-color), 0.35);
+}
+
+.now-playing-b {
+  box-shadow: 0 0 24px 2px rgba(var(--accent-color-b), 0.35);
+}
+
+.now-playing-b .np-progress-fill {
+  background: rgb(var(--accent-color-b));
+}
+
+.now-playing.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 兩張卡都亮著時，中間的連接視覺——代表「這兩軌現在連動在一起」*/
+
+.mashup-link {
+  width: 0;
+  height: 0.21vw;
+  margin: 0;
+  border-radius: 2px;
+  background: linear-gradient(90deg, rgb(var(--accent-color)), rgb(var(--accent-color-b)));
+  opacity: 0;
+  transition: width 0.5s ease, opacity 0.5s ease, margin 0.5s ease;
+}
+
+.mashup-link.active {
+  width: clamp(34px, 3vw, 76px);
+  margin: 0 0.8vw;
+  opacity: 1;
+  animation: mashup-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes mashup-pulse {
+  0%, 100% { box-shadow: 0 0 6px 1px rgba(var(--accent-color), 0.5); }
+  50% { box-shadow: 0 0 14px 3px rgba(var(--accent-color-b), 0.7); }
+}
+
+.np-art {
+  width: clamp(70px, 6.2vw, 160px);
+  height: clamp(70px, 6.2vw, 160px);
+  border-radius: 0.65vw;
+  object-fit: cover;
+  flex: none;
+  background: #2a2e35;
+}
+
+.np-meta {
+  min-width: 0;
+  flex: 1;
+  color: #fff;
+}
+
+.np-title {
+  font-size: clamp(19px, 1.5vw, 38px);
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.np-artist {
+  font-size: clamp(15px, 1.05vw, 27px);
+  opacity: 0.75;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 0.26vw;
+}
+
+.np-progress-track {
+  width: 100%;
+  height: 0.32vw;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  margin-top: 0.9vw;
+  overflow: hidden;
+}
+
+.np-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: rgb(var(--accent-color));
+  font-variant-numeric: tabular-nums;
+}
+
+/* Incoming：右下角，視覺強度較弱 */
+
+.incoming {
+  right: 1.67vw;
+  bottom: 1.67vw;
+  width: clamp(360px, 30vw, 740px);
+  padding: 1.4vw 1.9vw;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  opacity: 0;
+  transform: translateX(24px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+  background: rgba(20, 22, 26, 0.68);
+  box-shadow: 0 0 34px 4px rgba(var(--accent-color-b), 0.4);
+}
+
+.incoming.show {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.incoming-label {
+  position: absolute;
+  top: -1.5vw;
+  left: 1.3vw;
+  font-size: clamp(13px, 0.95vw, 24px);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #fff;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.in-art {
+  width: clamp(64px, 5.3vw, 130px);
+  height: clamp(64px, 5.3vw, 130px);
+  border-radius: 0.68vw;
+  object-fit: cover;
+  flex: none;
+  background: #2a2e35;
+}
+
+.in-meta {
+  min-width: 0;
+  flex: 1;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.in-title {
+  font-size: clamp(20px, 1.5vw, 35px);
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.in-artist {
+  font-size: clamp(16px, 1.1vw, 27px);
+  opacity: 0.95;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 視訊畫面：右上角，DJ 鏡頭畫面，Route A 那邊的開關控制要不要顯示 */
+
+.webcam-frame {
+  top: 1.67vw;
+  right: 1.67vw;
+  padding: 6px;
+  width: clamp(120px, 10vw, 220px);
+  aspect-ratio: 4 / 3;
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 1s ease, transform 1s ease;
+  pointer-events: none;
+}
+
+.webcam-frame.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+#webcam-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 10px;
+  background: #000;
+  display: block;
+}

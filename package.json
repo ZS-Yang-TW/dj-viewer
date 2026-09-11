@@ -1,0 +1,22 @@
+{
+  "name": "prolink-poc",
+  "version": "1.0.0",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "serato": "node serato.js",
+    "web": "node server.js"
+  },
+  "dependencies": {
+    "cap": "^0.2.1",
+    "express": "^5.2.1",
+    "music-metadata": "^11.15.0",
+    "prolink-connect": "^0.11.0",
+    "serato-connect": "^1.4.0",
+    "ws": "^8.21.3",
+    "yt-search": "^2.13.1"
+  },
+  "overrides": {
+    "better-sqlite3": "^13.0.3"
+  }
+}

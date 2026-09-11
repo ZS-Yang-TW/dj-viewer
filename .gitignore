@@ -1,0 +1,6 @@
+node_modules/
+*.log
+.DS_Store
+.claude/settings.local.json
+public/videos/*
+!public/videos/.gitkeep
