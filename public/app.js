@@ -1,6 +1,7 @@
 const NUM_DECKS = 4;
 const RHYTHM_STALE_MS = 3000;
 const HIDE_34_KEY = 'djviewer.hideDecks34';
+const HIDE_OVERLAY_PREVIEW_KEY = 'djviewer.hideOverlayPreview';
 
 const decksEl = document.getElementById('decks');
 const hideToggle = document.getElementById('hide-3-4');
@@ -13,6 +14,9 @@ const overlayStateTextEl = document.getElementById('overlay-state-text');
 const vjStyleGridEl = document.getElementById('vj-style-grid');
 const toggleWebcamBtn = document.getElementById('toggle-webcam-btn');
 const dropBtn = document.getElementById('drop-btn');
+const overlayPreviewEl = document.getElementById('overlay-preview');
+const overlayPreviewFrameEl = document.getElementById('overlay-preview-frame');
+const overlayPreviewToggleBtn = document.getElementById('overlay-preview-toggle');
 
 const state = {};
 let overlayVisible = true;
@@ -28,6 +32,28 @@ hideToggle.checked = localStorage.getItem(HIDE_34_KEY) === '1';
 hideToggle.addEventListener('change', () => {
   localStorage.setItem(HIDE_34_KEY, hideToggle.checked ? '1' : '0');
   applyHide34(hideToggle.checked);
+});
+
+// iframe 內部固定用 1920x1080（overlay.css 很多尺寸是 clamp() 夾了 px 下限，
+// 縮小 viewport 會讓版面被下限撐爆），外層只用 transform: scale() 整張縮小，
+// 縮放比例照容器實際渲染寬度換算，容器變寬（例如視窗縮放）要重算一次。
+function fitOverlayPreview() {
+  if (overlayPreviewEl.classList.contains('hidden')) return;
+  const scale = overlayPreviewEl.clientWidth / 1920;
+  overlayPreviewFrameEl.style.transform = `scale(${scale})`;
+  overlayPreviewEl.style.height = `${1080 * scale}px`;
+}
+window.addEventListener('resize', fitOverlayPreview);
+overlayPreviewFrameEl.addEventListener('load', fitOverlayPreview);
+
+overlayPreviewEl.classList.toggle('hidden', localStorage.getItem(HIDE_OVERLAY_PREVIEW_KEY) === '1');
+overlayPreviewToggleBtn.textContent = overlayPreviewEl.classList.contains('hidden') ? '顯示預覽' : '隱藏預覽';
+fitOverlayPreview();
+overlayPreviewToggleBtn.addEventListener('click', () => {
+  const hidden = overlayPreviewEl.classList.toggle('hidden');
+  localStorage.setItem(HIDE_OVERLAY_PREVIEW_KEY, hidden ? '1' : '0');
+  overlayPreviewToggleBtn.textContent = hidden ? '顯示預覽' : '隱藏預覽';
+  if (!hidden) fitOverlayPreview();
 });
 
 const DECK_EDIT_KEYS = ['Q', 'W', 'E', 'R'];
@@ -96,6 +122,11 @@ function formatTime(sec) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+const ART_PLACEHOLDER_SRC = 'art-placeholder.svg';
+
+// 有曲目但抓不到封面(串流曲目、iTunes 也查無結果……)時,放一張灰色唱盤的
+// 預設圖示,不要讓 <img> 顯示瀏覽器內建那個破圖示——跟「deck 完全沒載入
+// 曲目」是不同狀態,那個仍然用 art-placeholder 文字（見 updateDeckUI）。
 async function loadArt(deckId) {
   const img = document.getElementById(`art-${deckId}`);
   const placeholder = document.getElementById(`art-placeholder-${deckId}`);
@@ -104,13 +135,11 @@ async function loadArt(deckId) {
     if (!res.ok) throw new Error('no art');
     const blob = await res.blob();
     img.src = URL.createObjectURL(blob);
-    img.style.display = 'block';
-    placeholder.style.display = 'none';
   } catch {
-    img.style.display = 'none';
-    placeholder.style.display = 'block';
-    placeholder.textContent = '無封面';
+    img.src = ART_PLACEHOLDER_SRC;
   }
+  img.style.display = 'block';
+  placeholder.style.display = 'none';
 }
 
 let audioCtx;
@@ -350,6 +379,11 @@ function nudgeYt(sign) {
 ytNudgeBackBtn.addEventListener('click', () => nudgeYt(-1));
 ytNudgeFwdBtn.addEventListener('click', () => nudgeYt(1));
 
+const ytResyncBtn = document.getElementById('yt-resync-btn');
+ytResyncBtn.addEventListener('click', () => {
+  fetch('/api/yt-resync', { method: 'POST' });
+});
+
 // VJ_STYLE_DEFS 是 vj-preview.js 定義的（名稱 + 是否有即時預覽），這裡負責
 // 建卡片、處理點選、還有跟伺服器同步目前選到哪個風格。
 VJ_STYLE_DEFS.forEach((def, i) => {
@@ -358,7 +392,7 @@ VJ_STYLE_DEFS.forEach((def, i) => {
   card.dataset.style = def.key;
   const keyBadge = `<kbd class="vj-card-key">⌥${i + 1}</kbd>`;
   card.innerHTML =
-    def.key === 'ytmv' || def.key === 'localmp4'
+    def.key === 'ytmv' || def.key === 'localmp4' || def.key === 'localmv'
       ? `${keyBadge}<div class="vj-card-preview vj-card-preview-static">▶</div><div class="vj-card-label">${def.label}</div>`
       : `${keyBadge}<div class="vj-card-preview" id="vj-preview-${def.key}"></div><div class="vj-card-label">${def.label}</div>`;
   card.addEventListener('click', async () => {
@@ -529,6 +563,12 @@ document.addEventListener('keydown', (ev) => {
   if (code === 'BracketRight') {
     ev.preventDefault();
     nudgeYt(1);
+    return;
+  }
+
+  if (code === 'Backslash') {
+    ev.preventDefault();
+    ytResyncBtn.click();
     return;
   }
 

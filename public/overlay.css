@@ -99,7 +99,11 @@ html, body {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
+  /* YouTube 一定會在角落疊自己的浮水印 logo，controls:0/modestbranding 都
+     只能減少、沒辦法完全關掉——把 iframe 整個放大一點，靠父層 .yt-player-slot
+     的 overflow:hidden 把放大出去的邊緣（浮水印所在的角落）裁掉，畫面看起來
+     才是乾淨的純影片，不是「稍微加了一點防護但角落還是有個 YouTube 字樣」。 */
+  transform: translate(-50%, -50%) scale(1.18);
   pointer-events: none;
 }
 
@@ -138,6 +142,83 @@ html, body {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* 「本機 MV」：跟 .yt-player-wrap 同一套排版邏輯（單軌全螢幕/雙軌分割），
+   但影片來源是本機 <video> 不是 YouTube iframe，不需要 JS 手動算 setSize()
+   ——object-fit: cover 讓瀏覽器自己處理裁切填滿，也不用另外裁浮水印。
+   background 故意是透明的（不是 #000）：找不到對應本機檔案的 container 會
+   退回 YouTube 搜尋（見 overlay.js 的 mvSourceIsYt），畫面上疊在 .yt-player-wrap
+   「上面」——那個 container 的 <video> 用 mv-source-yt 隱藏掉，透明背景才能讓
+   底下 .yt-player-wrap 的畫面透出來；真的有本機影片在播的 container 則是
+   <video> 自己畫面不透明，蓋過去，不受這個透明背景影響。 */
+.local-mv-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: transparent;
+  display: none;
+}
+
+.local-mv-wrap.active {
+  display: block;
+}
+
+.local-mv-slot {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  overflow: hidden;
+  left: 100%;
+  width: 0;
+  transition: width 0.4s ease, left 0.4s ease;
+}
+
+.local-mv-slot.mv-solo {
+  left: 0;
+  width: 100%;
+}
+
+.local-mv-wrap.split .local-mv-slot-a {
+  left: 0;
+  width: 50%;
+}
+
+.local-mv-wrap.split .local-mv-slot-b {
+  left: 50%;
+  width: 50%;
+}
+
+.local-mv-slot.mv-source-yt .local-mv-video {
+  display: none;
+}
+
+.local-mv-video {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.local-mv-divider {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 0;
+  height: 100%;
+  background: linear-gradient(180deg, rgb(var(--accent-color)), rgb(var(--accent-color-b)));
+  opacity: 0;
+  transform: translateX(-50%);
+  transition: opacity 0.4s ease;
+  z-index: 1;
+}
+
+.local-mv-wrap.split .local-mv-divider {
+  width: 3px;
+  opacity: 0.9;
 }
 
 /*

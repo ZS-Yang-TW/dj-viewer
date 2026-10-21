@@ -93,6 +93,41 @@ h1, h2 {
   margin: 0 0 12px;
 }
 
+/* Overlay 小畫面預覽——直接內嵌真正的 /overlay 頁面（同一份 overlay.js/WS
+   連線），不是另外刻一份假資料的縮圖，所以 Now Playing、VJ 視覺、YouTube MV
+   都跟 Route B 正在播的內容完全同步。overlay.css 裡很多尺寸用 clamp() 夾了
+   px 下限，直接把 iframe 縮小到目標寬度會讓版面在小尺寸下被那些下限撐爆,
+   所以做法是讓 iframe 內部維持原生 1920x1080 渲染，外層用 transform: scale()
+   整張縮小，容器 overflow:hidden 裁掉多的部分——JS（app.js 的
+   fitOverlayPreview）負責量容器實際寬度換算縮放比例。 */
+.panel-section h2 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.overlay-preview {
+  width: 100%;
+  max-width: 480px;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: #000;
+}
+
+.overlay-preview.hidden {
+  display: none;
+}
+
+.overlay-preview iframe {
+  display: block;
+  width: 1920px;
+  height: 1080px;
+  border: 0;
+  pointer-events: none;
+  transform-origin: top left;
+}
+
 /* VJ 控制：圖卡選擇 */
 
 .vj-style-grid {

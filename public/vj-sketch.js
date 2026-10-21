@@ -10,6 +10,7 @@
  *   beatbars —— 畫面切成 8 條直的長條，跟著拍子從左到右一條一條亮起，材質是點雜訊
  *   constellation —— 星星依拍點逐一連線成星座，舊線慢慢淡出，線與線不重疊
  *   coderain —— 駭客任務風格的直向字元瀑布，頭亮尾暗，跟著拍子加快掉落
+ *   ncscircle —— 仿 NCS 頻道那個發光圓圈（不含文字），外緣像煙霧一樣扭曲
  *
  * 這支檔案本身是 ES module（overlay.html 用 <script type="module"> 載入），
  * 所以 p5 lifecycle 函式（setup/draw/windowResized）要明著掛到 window 上——
@@ -40,6 +41,7 @@ import { drawChaos, initChaos } from './vj-scenes/chaos.js';
 import { drawBeatBars } from './vj-scenes/beat-bars.js';
 import { drawConstellation, initConstellation } from './vj-scenes/constellation.js';
 import { drawCodeRain } from './vj-scenes/code-rain.js';
+import { drawNcsCircle } from './vj-scenes/ncs-circle.js';
 
 let smoothedPulse = 0.3;
 
@@ -99,5 +101,6 @@ window.draw = function draw() {
   else if (style === 'beatbars') drawBeatBars(pulse, accentColors, colorPhase);
   else if (style === 'constellation') drawConstellation(pulse, accentColors, colorPhase);
   else if (style === 'coderain') drawCodeRain(pulse, accentColors, colorPhase);
+  else if (style === 'ncscircle') drawNcsCircle(pulse, accentColors, colorPhase);
   else drawCircles(pulse, accentColors, colorPhase);
 };

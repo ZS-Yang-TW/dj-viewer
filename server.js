@@ -50,7 +50,7 @@ const INCOMING_HOLD_MS = 8000;
 const HISTORY_MAX = 200;
 const HISTORY_LOG_PATH = path.join(__dirname, 'history.log');
 const VIDEOS_DIR = path.join(__dirname, 'public', 'videos');
-const VJ_STYLES = ['circles', 'waveform', 'plexus', 'laser', 'breath', 'chaos', 'beatbars', 'constellation', 'coderain', 'ytmv', 'localmp4'];
+const VJ_STYLES = ['circles', 'waveform', 'plexus', 'laser', 'breath', 'chaos', 'beatbars', 'constellation', 'coderain', 'ncscircle', 'ytmv', 'localmp4', 'localmv'];
 
 fs.mkdirSync(VIDEOS_DIR, { recursive: true });
 
@@ -94,6 +94,9 @@ function getDeck(deckId) {
       onAir: false,
       onAirSince: null,
       lastLoggedFilePath: null,
+      loopActive: false,
+      loopStartSeconds: null,
+      loopBeatLength: null,
     });
   }
   return decks.get(deckId);
@@ -109,8 +112,32 @@ function effectiveTrack(deck) {
   };
 }
 
+// beatLength 是 Serato 回報的 loop 長度(拍數),換算成秒數要乘上一拍的時長
+// (60 / bpm)。沒有 bpm 就沒辦法換算,回傳 null(前端會直接不做 loop 視覺同步)。
+function loopDurationSeconds(deck) {
+  if (!deck.loopActive || !deck.bpm || deck.loopBeatLength == null) return null;
+  return deck.loopBeatLength * (60 / deck.bpm);
+}
+
+// 用 hot cue 跳出 loop 時,Serato Remote 不一定會送 loopChange(autoLoopOn:false)
+// ——這裡用「播放位置已經離開 loop 範圍一大段」反推 loop 事實上已經結束,不然
+// loopActive 會卡在 true,前端的 loop 視覺同步會一直把 MV 拉回 loop 裡出不來。
+// 留一點誤差範圍(容忍正常 loop 自己來回時的量測誤差),避免真的還在 loop
+// 裡卻被誤判成跳出去。
+const LOOP_EXIT_TOLERANCE_SECONDS = 1.5;
+function isOutsideLoop(deck, positionSeconds) {
+  if (!deck.loopActive || deck.loopStartSeconds == null) return false;
+  const duration = loopDurationSeconds(deck);
+  if (!duration) return false;
+  const loopEnd = deck.loopStartSeconds + duration;
+  return (
+    positionSeconds < deck.loopStartSeconds - LOOP_EXIT_TOLERANCE_SECONDS ||
+    positionSeconds > loopEnd + LOOP_EXIT_TOLERANCE_SECONDS
+  );
+}
+
 function serializeDeck(deck) {
-  const { deckId, duration, hasArt, positionSeconds, playRate, bpm, onAir, override } = deck;
+  const { deckId, duration, hasArt, positionSeconds, playRate, bpm, onAir, override, loopActive, loopStartSeconds } = deck;
   return {
     deckId,
     track: effectiveTrack(deck),
@@ -121,6 +148,9 @@ function serializeDeck(deck) {
     bpm,
     onAir,
     override,
+    loopActive,
+    loopStartSeconds,
+    loopDurationSeconds: loopDurationSeconds(deck),
   };
 }
 
@@ -421,6 +451,14 @@ app.post('/api/yt-nudge', (req, res) => {
   res.json({ ok: true });
 });
 
+// 手動「更新對位」:overlay.js 收到後會把目前每個 YT container 重新 seek 到
+// 對應 deck 現在估計的播放位置——自動跳位置偵測(門檻式)之外的保底手段,
+// 給小範圍 beatjump 或偵測沒抓到的情況一個手動重新對齊的方式。
+app.post('/api/yt-resync', (req, res) => {
+  broadcast({ type: 'ytResync' });
+  res.json({ ok: true });
+});
+
 app.post('/api/deck/:deckId/override', (req, res) => {
   const deck = getDeck(Number(req.params.deckId));
   const { title, artist, artUrl } = req.body;
@@ -524,6 +562,12 @@ async function main() {
     deck.playRate = playhead.playRate ?? deck.playRate;
     deck.bpm = playhead.bpm ?? deck.bpm;
 
+    if (isOutsideLoop(deck, deck.positionSeconds)) {
+      deck.loopActive = false;
+      deck.loopStartSeconds = null;
+      broadcast({ type: 'loop', deckId, active: false, startSeconds: null, durationSeconds: null });
+    }
+
     recomputeOnAir();
 
     const now = Date.now();
@@ -550,7 +594,33 @@ async function main() {
     recomputeOnAir();
   });
 
-  remote.on('loopChange', ({ deckId, loop }) => console.log(`[serato] loopChange deck=${deckId}`, loop));
+  // Serato 只回報「loop 開/關」+「loop 長度(拍數)」,沒有直接給 loop-in/out 的秒數。
+  // 用「loop 剛啟動那一刻的 positionSeconds」當作 loop-in 點來近似——同一個 loop
+  // 開著期間改變長度(例如減半/加倍)算同一個 loop,不重設起點,只重算長度。
+  // loopRollOn(loop roll,放開後自動恢復的暫時性效果)先不處理,只跟 autoLoopOn
+  // 這種手動開關的 loop 對齊,避免每次滾輪過個 loop roll 都讓 MV 畫面跳一下。
+  remote.on('loopChange', ({ deckId, loop }) => {
+    console.log(`[serato] loopChange deck=${deckId}`, loop);
+    const deck = getDeck(deckId);
+    const wasActive = deck.loopActive;
+    const active = !!loop.autoLoopOn;
+    deck.loopActive = active;
+    if (loop.beatLength != null) deck.loopBeatLength = loop.beatLength;
+
+    if (active && !wasActive) {
+      deck.loopStartSeconds = deck.positionSeconds;
+    } else if (!active) {
+      deck.loopStartSeconds = null;
+    }
+
+    broadcast({
+      type: 'loop',
+      deckId,
+      active,
+      startSeconds: deck.loopStartSeconds,
+      durationSeconds: loopDurationSeconds(deck),
+    });
+  });
 
   remote.on('error', (err) => console.error('❌ Serato Remote 錯誤：', err));
 

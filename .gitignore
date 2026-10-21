@@ -4,3 +4,19 @@ node_modules/
 .claude/settings.local.json
 public/videos/*
 !public/videos/.gitkeep
+
+# 大型媒體檔
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.avi
+*.mp3
+*.wav
+*.flac
+*.m4a
+
+# 機敏資訊／本機設定
+.env
+*.env
+.claude/

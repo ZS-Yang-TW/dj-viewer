@@ -19,8 +19,10 @@ const VJ_STYLE_DEFS = [
   { key: 'beatbars', label: '節拍長條' },
   { key: 'constellation', label: '星座' },
   { key: 'coderain', label: '程式碼' },
+  { key: 'ncscircle', label: 'NCS 圈圈' },
   { key: 'ytmv', label: 'YouTube MV（靜音）' },
   { key: 'localmp4', label: '本機 MP4' },
+  { key: 'localmv', label: '本機 MV（比對曲名）' },
 ];
 
 const DEMO_BPM = 128;
@@ -122,6 +124,16 @@ function makePreviewSketch(styleKey, holderEl) {
       codeGridCols = cols;
       codeGridRows = rows;
     };
+
+    // NCS 圈圈：跟正式輸出（vj-scenes/ncs-circle.js）同一套「假頻譜」pipeline
+    // 的縮小版——頻段數更少，小卡片看不出差異。殘影效果一樣要靠一塊獨立的
+    // graphics buffer（不會被每幀的 p.background() 清掉），細節解釋見
+    // ncs-circle.js。
+    const NCS_NUM_BANDS = 24;
+    const NCS_SMOOTH_SPEED = 0.15;
+    const NCS_TRAIL_FADE_ALPHA = 26;
+    let ncsPreviousValues = new Array(NCS_NUM_BANDS).fill(0);
+    let ncsTrailBuffer = null;
 
     p.setup = function () {
       const rect = holderEl.getBoundingClientRect();
@@ -424,6 +436,91 @@ function makePreviewSketch(styleKey, holderEl) {
             p.text(col.glyphs[row], x, y);
           }
         });
+      } else if (styleKey === 'ncscircle') {
+        // 假頻譜 pipeline 的縮小版：(假)頻段 → 空間平滑 → 時間平滑 → 鏡射 →
+        // 逐點算半徑位移 → 畫一條平滑閉合曲線。細節解釋見 ncs-circle.js。
+        rotation += 0.0006 + pulse * 0.0006;
+        const t = p.millis() * 0.0009;
+        const pointCount = NCS_NUM_BANDS * 2;
+
+        const raw = [];
+        for (let i = 0; i < NCS_NUM_BANDS; i++) {
+          const freqPos = i / (NCS_NUM_BANDS - 1);
+          const noiseSpeed = p.lerp(0.5, 3.2, freqPos);
+          const n = p.noise(i * 3.7 + 100, t * noiseSpeed);
+          const beatWeight = 1 - freqPos * 0.75;
+          raw.push(n * (0.35 + freqPos * 0.3) + pulse * beatWeight * 0.6);
+        }
+
+        let spatial = raw;
+        for (let pass = 0; pass < 2; pass++) {
+          spatial = spatial.map((v, i) => {
+            const prev = spatial[Math.max(0, i - 1)];
+            const next = spatial[Math.min(spatial.length - 1, i + 1)];
+            return (prev + v * 2 + next) / 4;
+          });
+        }
+
+        const smoothed = spatial.map((v, i) => {
+          const s = p.lerp(ncsPreviousValues[i], v, NCS_SMOOTH_SPEED);
+          ncsPreviousValues[i] = s;
+          return s;
+        });
+        const mirrored = smoothed.concat(smoothed.slice().reverse());
+
+        const cx = w / 2;
+        const cy = h / 2;
+        const baseR = Math.min(w, h) * 0.2;
+        const maxDisplacement = baseR * 1.3; // 振幅：位移可以把半徑推到 base 的兩倍以上
+        const pulseBoost = baseR * 0.22;
+
+        const pts = mirrored.map((amp, i) => {
+          const angle = (i / pointCount) * Math.PI * 2 + rotation;
+          const r = baseR + pulse * pulseBoost + amp * maxDisplacement;
+          return [cx + Math.cos(angle) * r, cy + Math.sin(angle) * r];
+        });
+
+        if (!ncsTrailBuffer || ncsTrailBuffer.width !== w || ncsTrailBuffer.height !== h) {
+          ncsTrailBuffer = p.createGraphics(w, h);
+          ncsTrailBuffer.colorMode(p.RGB, 255);
+          ncsTrailBuffer.background(8, 9, 12);
+        }
+
+        // 鏡射造出的折返點 + 大振幅會讓預設的 Catmull-Rom 張力甩出一根尖刺，
+        // 調高 curveTightness 壓掉過衝，跟 ncs-circle.js 用同一個值
+        const drawClosedCurve = (ctx) => {
+          ctx.curveTightness(0.75);
+          ctx.beginShape();
+          ctx.curveVertex(pts[pts.length - 1][0], pts[pts.length - 1][1]);
+          pts.forEach((pt) => ctx.curveVertex(pt[0], pt[1]));
+          ctx.curveVertex(pts[0][0], pts[0][1]);
+          ctx.curveVertex(pts[1][0], pts[1][1]);
+          ctx.endShape(p.CLOSE);
+        };
+
+        // 殘影：先疊一層半透明底色淡化上一幀，不是整塊擦掉
+        ncsTrailBuffer.blendMode(p.BLEND);
+        ncsTrailBuffer.noStroke();
+        ncsTrailBuffer.fill(8, 9, 12, NCS_TRAIL_FADE_ALPHA);
+        ncsTrailBuffer.rect(0, 0, w, h);
+
+        ncsTrailBuffer.blendMode(p.ADD);
+        ncsTrailBuffer.noFill();
+        const glow = paletteAt(colorPhase, 0);
+        for (let layer = 2; layer >= 1; layer--) {
+          ncsTrailBuffer.stroke(glow[0], glow[1], glow[2], 12 + layer * 8);
+          ncsTrailBuffer.strokeWeight(5 + layer * 7 + pulse * 8);
+          drawClosedCurve(ncsTrailBuffer);
+        }
+
+        const core = paletteAt(colorPhase, 1);
+        ncsTrailBuffer.stroke(core[0], core[1], core[2], 230);
+        ncsTrailBuffer.strokeWeight(1.8);
+        drawClosedCurve(ncsTrailBuffer);
+
+        ncsTrailBuffer.blendMode(p.BLEND);
+        p.image(ncsTrailBuffer, 0, 0);
+        p.noStroke();
       }
     };
   };
@@ -431,7 +528,7 @@ function makePreviewSketch(styleKey, holderEl) {
 
 function mountVjPreviews() {
   for (const def of VJ_STYLE_DEFS) {
-    if (def.key === 'ytmv' || def.key === 'localmp4') continue; // 沒有生成式畫面可以預覽，卡片用靜態圖示代替
+    if (def.key === 'ytmv' || def.key === 'localmp4' || def.key === 'localmv') continue; // 沒有生成式畫面可以預覽，卡片用靜態圖示代替
     const holder = document.getElementById(`vj-preview-${def.key}`);
     if (!holder) continue;
     new p5(makePreviewSketch(def.key, holder), holder);

@@ -17,6 +17,13 @@
   <kbd>⌥O</kbd>
 </div>
 
+<section class="panel-section" id="section-overlay-preview">
+  <h2>Overlay 預覽 <button id="overlay-preview-toggle" class="btn btn-small">隱藏預覽</button></h2>
+  <div class="overlay-preview" id="overlay-preview">
+    <iframe id="overlay-preview-frame" src="/overlay" tabindex="-1" scrolling="no" allow="autoplay; encrypted-media"></iframe>
+  </div>
+</section>
+
 <section class="panel-section" id="section-dj">
   <h2>DJ 控制</h2>
   <label class="toggle-row">
@@ -44,6 +51,8 @@
     <input type="number" id="yt-nudge-step" class="yt-nudge-step" value="1" min="0.1" step="0.1" />
     <button id="yt-nudge-fwd" class="btn btn-small">+1s</button>
     <kbd>⌥]</kbd>
+    <button id="yt-resync-btn" class="btn btn-small">更新對位</button>
+    <kbd>⌥\</kbd>
   </div>
 </section>
 
